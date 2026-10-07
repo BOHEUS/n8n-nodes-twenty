@@ -60,6 +60,13 @@ export class Twenty implements INodeType {
 						description: 'Create a record of the object',
 					},
 					{
+						name: 'Create or Update',
+						value: 'upsert',
+						action: 'Create or update a record',
+						description:
+							'Create a new record, or update the current one if it already exists (upsert)',
+					},
+					{
 						name: 'Delete',
 						value: 'delete',
 						action: 'Delete a record',
@@ -102,6 +109,15 @@ export class Twenty implements INodeType {
 				description: 'The ID of the record',
 			},
 			{
+				displayName: 'Record ID',
+				name: 'upsertId',
+				type: 'string',
+				displayOptions: { show: { operation: ['upsert'] } },
+				default: '',
+				description:
+					'Optional. The record to update, or the ID a new record is created with. Leave empty to match on the unique fields only.',
+			},
+			{
 				displayName: 'Delete Permanently',
 				name: 'permanently',
 				type: 'boolean',
@@ -117,7 +133,7 @@ export class Twenty implements INodeType {
 				noDataExpression: true,
 				default: { mappingMode: 'defineBelow', value: null },
 				required: true,
-				displayOptions: { show: { operation: ['create', 'update'] } },
+				displayOptions: { show: { operation: ['create', 'update', 'upsert'] } },
 				typeOptions: {
 					loadOptionsDependsOn: ['object'],
 					resourceMapper: {
@@ -198,10 +214,22 @@ export class Twenty implements INodeType {
 						filter ? { filter } : {},
 						limit,
 					);
-				} else if (operation === 'create') {
+				} else if (operation === 'create' || operation === 'upsert') {
 					const record = buildRecord.call(this, i);
+					const upsert = operation === 'upsert';
+					const id = upsert ? (this.getNodeParameter('upsertId', i) as string) : '';
+					if (id) record.id = id;
+
 					records = [
-						unwrapRecord(await twentyApiRequest.call(this, 'POST', `/rest/${object}`, {}, record)),
+						unwrapRecord(
+							await twentyApiRequest.call(
+								this,
+								'POST',
+								`/rest/${object}`,
+								upsert ? { upsert: true } : {},
+								record,
+							),
+						),
 					];
 				} else {
 					// Encoding keeps an unexpected expression result inside the URL path.
