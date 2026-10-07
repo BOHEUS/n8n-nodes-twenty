@@ -60,6 +60,18 @@ export class Twenty implements INodeType {
 						description: 'Create a record of the object',
 					},
 					{
+						name: 'Delete',
+						value: 'delete',
+						action: 'Delete a record',
+						description: 'Delete a record of the object',
+					},
+					{
+						name: 'Get',
+						value: 'get',
+						action: 'Get a record',
+						description: 'Get a record of the object by its ID',
+					},
+					{
 						name: 'Get Many',
 						value: 'getAll',
 						action: 'Get many records',
@@ -78,10 +90,10 @@ export class Twenty implements INodeType {
 				displayName: 'Record ID',
 				name: 'recordId',
 				type: 'string',
-				displayOptions: { show: { operation: ['update'] } },
+				displayOptions: { show: { operation: ['get', 'update', 'delete'] } },
 				default: '',
 				required: true,
-				description: 'The ID of the record to update',
+				description: 'The ID of the record',
 			},
 			{
 				displayName: 'Fields',
@@ -171,18 +183,21 @@ export class Twenty implements INodeType {
 						filter ? { filter } : {},
 						limit,
 					);
-				} else {
+				} else if (operation === 'create') {
 					const record = buildRecord.call(this, i);
+					records = [
+						unwrapRecord(await twentyApiRequest.call(this, 'POST', `/rest/${object}`, {}, record)),
+					];
+				} else {
+					// Encoding keeps an unexpected expression result inside the URL path.
+					const id = encodeURIComponent(this.getNodeParameter('recordId', i) as string);
+					const path = `/rest/${object}/${id}`;
 					const response =
-						operation === 'create'
-							? await twentyApiRequest.call(this, 'POST', `/rest/${object}`, {}, record)
-							: await twentyApiRequest.call(
-									this,
-									'PATCH',
-									`/rest/${object}/${this.getNodeParameter('recordId', i) as string}`,
-									{},
-									record,
-								);
+						operation === 'get'
+							? await twentyApiRequest.call(this, 'GET', path)
+							: operation === 'update'
+								? await twentyApiRequest.call(this, 'PATCH', path, {}, buildRecord.call(this, i))
+								: await twentyApiRequest.call(this, 'DELETE', path);
 					records = [unwrapRecord(response)];
 				}
 
