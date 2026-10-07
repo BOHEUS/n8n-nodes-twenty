@@ -1,5 +1,6 @@
 import {
 	NodeConnectionTypes,
+	NodeOperationError,
 	type IDataObject,
 	type IExecuteFunctions,
 	type INodeExecutionData,
@@ -11,7 +12,12 @@ import { getMappingColumns } from './resourceMapping/getMappingColumns';
 import { createMany } from './operations/createMany';
 import { buildRecord } from './shared/buildRecord';
 import { toNodeError } from './shared/errors';
-import { twentyApiRequest, twentyApiRequestAllItems, unwrapRecord } from './shared/transport';
+import {
+	twentyApiRequest,
+	twentyApiRequestAllItems,
+	unwrapRecord,
+	unwrapRecords,
+} from './shared/transport';
 
 export class Twenty implements INodeType {
 	description: INodeTypeDescription = {
@@ -78,6 +84,12 @@ export class Twenty implements INodeType {
 						description: 'Delete a record of the object',
 					},
 					{
+						name: 'Delete Many',
+						value: 'deleteMany',
+						action: 'Delete many records',
+						description: 'Delete every record that matches a filter',
+					},
+					{
 						name: 'Get',
 						value: 'get',
 						action: 'Get a record',
@@ -101,6 +113,12 @@ export class Twenty implements INodeType {
 						action: 'Update a record',
 						description: 'Update a record of the object',
 					},
+					{
+						name: 'Update Many',
+						value: 'updateMany',
+						action: 'Update many records',
+						description: 'Update every record that matches a filter',
+					},
 				],
 				default: 'getAll',
 			},
@@ -123,10 +141,21 @@ export class Twenty implements INodeType {
 					'Optional. The record to update, or the ID a new record is created with. Leave empty to match on the unique fields only.',
 			},
 			{
+				displayName: 'Filter',
+				name: 'filter',
+				type: 'string',
+				displayOptions: { show: { operation: ['deleteMany', 'updateMany'] } },
+				default: '',
+				required: true,
+				placeholder: 'name.firstName[eq]:"Ada"',
+				description:
+					'Twenty filter expression selecting the records to change, e.g. <code>name.firstName[eq]:"Ada"</code>. It cannot be empty.',
+			},
+			{
 				displayName: 'Delete Permanently',
 				name: 'permanently',
 				type: 'boolean',
-				displayOptions: { show: { operation: ['delete'] } },
+				displayOptions: { show: { operation: ['delete', 'deleteMany'] } },
 				default: false,
 				description:
 					'Whether to delete the record for good instead of moving it to the trash, where it can be restored',
@@ -138,7 +167,9 @@ export class Twenty implements INodeType {
 				noDataExpression: true,
 				default: { mappingMode: 'defineBelow', value: null },
 				required: true,
-				displayOptions: { show: { operation: ['create', 'createMany', 'update', 'upsert'] } },
+				displayOptions: {
+					show: { operation: ['create', 'createMany', 'update', 'updateMany', 'upsert'] },
+				},
 				typeOptions: {
 					loadOptionsDependsOn: ['object'],
 					resourceMapper: {
@@ -240,6 +271,27 @@ export class Twenty implements INodeType {
 							),
 						),
 					];
+				} else if (operation === 'updateMany' || operation === 'deleteMany') {
+					// Twenty rejects an empty filter, but an expression can still resolve to one.
+					const filter = (this.getNodeParameter('filter', i) as string).trim();
+					if (!filter) {
+						throw new NodeOperationError(this.getNode(), 'A filter is required', { itemIndex: i });
+					}
+
+					const response =
+						operation === 'updateMany'
+							? await twentyApiRequest.call(
+									this,
+									'PATCH',
+									`/rest/${object}`,
+									{ filter },
+									buildRecord.call(this, i),
+								)
+							: await twentyApiRequest.call(this, 'DELETE', `/rest/${object}`, {
+									filter,
+									...(this.getNodeParameter('permanently', i) && { soft_delete: false }),
+								});
+					records = unwrapRecords(response);
 				} else {
 					// Encoding keeps an unexpected expression result inside the URL path.
 					const id = encodeURIComponent(this.getNodeParameter('recordId', i) as string);
