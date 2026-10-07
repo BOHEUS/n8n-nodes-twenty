@@ -15,6 +15,7 @@ import { toNodeError } from './shared/errors';
 import {
 	twentyApiRequest,
 	twentyApiRequestAllItems,
+	unwrapDuplicates,
 	unwrapRecord,
 	unwrapRecords,
 } from './shared/transport';
@@ -88,6 +89,12 @@ export class Twenty implements INodeType {
 						value: 'deleteMany',
 						action: 'Delete many records',
 						description: 'Delete every record that matches a filter',
+					},
+					{
+						name: 'Find Duplicates',
+						value: 'findDuplicates',
+						action: 'Find duplicate records',
+						description: 'Find existing records that look like the given field values',
 					},
 					{
 						name: 'Get',
@@ -168,7 +175,9 @@ export class Twenty implements INodeType {
 				default: { mappingMode: 'defineBelow', value: null },
 				required: true,
 				displayOptions: {
-					show: { operation: ['create', 'createMany', 'update', 'updateMany', 'upsert'] },
+					show: {
+						operation: ['create', 'createMany', 'findDuplicates', 'update', 'updateMany', 'upsert'],
+					},
 				},
 				typeOptions: {
 					loadOptionsDependsOn: ['object'],
@@ -271,6 +280,15 @@ export class Twenty implements INodeType {
 							),
 						),
 					];
+				} else if (operation === 'findDuplicates') {
+					const response = await twentyApiRequest.call(
+						this,
+						'POST',
+						`/rest/${object}/duplicates`,
+						{},
+						{ data: [buildRecord.call(this, i)] },
+					);
+					records = unwrapDuplicates(response);
 				} else if (operation === 'updateMany' || operation === 'deleteMany') {
 					// Twenty rejects an empty filter, but an expression can still resolve to one.
 					const filter = (this.getNodeParameter('filter', i) as string).trim();

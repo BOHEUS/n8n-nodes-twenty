@@ -95,3 +95,10 @@ export function unwrapRecord(response: unknown): IDataObject {
 export function unwrapRecords(response: unknown): IDataObject[] {
 	return Object.values((response as { data: Record<string, IDataObject[]> }).data)[0];
 }
+
+/** Duplicate matches come as one group per input record, each under `<object>Duplicates`. */
+export function unwrapDuplicates(response: unknown): IDataObject[] {
+	return (response as { data: Array<Record<string, IDataObject[]>> }).data.flatMap(
+		(group) => Object.values(group)[0],
+	);
+}
