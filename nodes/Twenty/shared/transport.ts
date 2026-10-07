@@ -61,3 +61,8 @@ export async function twentyApiRequestAllItems(
 		startingAfter = response.pageInfo.endCursor;
 	}
 }
+
+/** Single-record responses nest the record under a key named after the operation (`createPerson`, ...). */
+export function unwrapRecord(response: unknown): IDataObject {
+	return Object.values((response as { data: Record<string, IDataObject> }).data)[0];
+}

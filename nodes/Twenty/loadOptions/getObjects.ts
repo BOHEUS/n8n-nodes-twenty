@@ -1,20 +1,9 @@
 import type { ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
-import { twentyApiRequestAllItems } from '../shared/transport';
-
-interface ObjectMetadata {
-	namePlural: string;
-	labelPlural: string;
-	description?: string;
-	isActive: boolean;
-	isSystem: boolean;
-}
+import { getObjectsMetadata } from '../shared/metadata';
 
 /** Lists the workspace's objects (standard and custom), so the schema is never hardcoded. */
 export async function getObjects(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-	const objects = (await twentyApiRequestAllItems.call(
-		this,
-		'/rest/metadata/objects',
-	)) as unknown as ObjectMetadata[];
+	const objects = await getObjectsMetadata.call(this);
 
 	return objects
 		.filter((object) => object.isActive && !object.isSystem)

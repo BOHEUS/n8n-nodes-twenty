@@ -1,6 +1,7 @@
 import {
 	NodeApiError,
 	NodeConnectionTypes,
+	NodeOperationError,
 	type IDataObject,
 	type IExecuteFunctions,
 	type JsonObject,
@@ -9,7 +10,9 @@ import {
 	type INodeTypeDescription,
 } from 'n8n-workflow';
 import { getObjects } from './loadOptions/getObjects';
-import { twentyApiRequestAllItems } from './shared/transport';
+import { getMappingColumns } from './resourceMapping/getMappingColumns';
+import { buildRecord } from './shared/buildRecord';
+import { twentyApiRequest, twentyApiRequestAllItems, unwrapRecord } from './shared/transport';
 
 export class Twenty implements INodeType {
 	description: INodeTypeDescription = {
@@ -51,13 +54,53 @@ export class Twenty implements INodeType {
 				noDataExpression: true,
 				options: [
 					{
+						name: 'Create',
+						value: 'create',
+						action: 'Create a record',
+						description: 'Create a record of the object',
+					},
+					{
 						name: 'Get Many',
 						value: 'getAll',
 						action: 'Get many records',
 						description: 'Get many records of the object',
 					},
+					{
+						name: 'Update',
+						value: 'update',
+						action: 'Update a record',
+						description: 'Update a record of the object',
+					},
 				],
 				default: 'getAll',
+			},
+			{
+				displayName: 'Record ID',
+				name: 'recordId',
+				type: 'string',
+				displayOptions: { show: { operation: ['update'] } },
+				default: '',
+				required: true,
+				description: 'The ID of the record to update',
+			},
+			{
+				displayName: 'Fields',
+				name: 'columns',
+				type: 'resourceMapper',
+				noDataExpression: true,
+				default: { mappingMode: 'defineBelow', value: null },
+				required: true,
+				displayOptions: { show: { operation: ['create', 'update'] } },
+				typeOptions: {
+					loadOptionsDependsOn: ['object'],
+					resourceMapper: {
+						resourceMapperMethod: 'getMappingColumns',
+						mode: 'add',
+						fieldWords: { singular: 'field', plural: 'fields' },
+						addAllFields: false,
+						supportAutoMap: true,
+					},
+				},
 			},
 			{
 				displayName: 'Return All',
@@ -102,6 +145,9 @@ export class Twenty implements INodeType {
 		loadOptions: {
 			getObjects,
 		},
+		resourceMapping: {
+			getMappingColumns,
+		},
 	};
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
@@ -110,13 +156,35 @@ export class Twenty implements INodeType {
 
 		for (let i = 0; i < items.length; i++) {
 			try {
+				const operation = this.getNodeParameter('operation', i) as string;
 				const object = this.getNodeParameter('object', i) as string;
-				const returnAll = this.getNodeParameter('returnAll', i) as boolean;
-				const limit = returnAll ? Infinity : (this.getNodeParameter('limit', i) as number);
-				const { filter } = this.getNodeParameter('options', i) as { filter?: string };
+				let records: IDataObject[];
 
-				const qs: IDataObject = filter ? { filter } : {};
-				const records = await twentyApiRequestAllItems.call(this, `/rest/${object}`, qs, limit);
+				if (operation === 'getAll') {
+					const returnAll = this.getNodeParameter('returnAll', i) as boolean;
+					const limit = returnAll ? Infinity : (this.getNodeParameter('limit', i) as number);
+					const { filter } = this.getNodeParameter('options', i) as { filter?: string };
+
+					records = await twentyApiRequestAllItems.call(
+						this,
+						`/rest/${object}`,
+						filter ? { filter } : {},
+						limit,
+					);
+				} else {
+					const record = buildRecord.call(this, i);
+					const response =
+						operation === 'create'
+							? await twentyApiRequest.call(this, 'POST', `/rest/${object}`, {}, record)
+							: await twentyApiRequest.call(
+									this,
+									'PATCH',
+									`/rest/${object}/${this.getNodeParameter('recordId', i) as string}`,
+									{},
+									record,
+								);
+					records = [unwrapRecord(response)];
+				}
 
 				returnData.push(
 					...this.helpers.constructExecutionMetaData(this.helpers.returnJsonArray(records), {
@@ -127,6 +195,9 @@ export class Twenty implements INodeType {
 				if (this.continueOnFail()) {
 					returnData.push({ json: { error: (error as Error).message }, pairedItem: { item: i } });
 					continue;
+				}
+				if (error instanceof NodeOperationError) {
+					throw new NodeOperationError(this.getNode(), error, { itemIndex: i });
 				}
 				throw new NodeApiError(this.getNode(), error as JsonObject, { itemIndex: i });
 			}
