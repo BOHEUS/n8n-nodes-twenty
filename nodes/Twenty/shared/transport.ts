@@ -1,8 +1,10 @@
-import type {
-	IDataObject,
-	IExecuteFunctions,
-	IHttpRequestMethods,
-	ILoadOptionsFunctions,
+import {
+	NodeApiError,
+	type IDataObject,
+	type IExecuteFunctions,
+	type IHttpRequestMethods,
+	type ILoadOptionsFunctions,
+	type JsonObject,
 } from 'n8n-workflow';
 
 type TwentyContext = IExecuteFunctions | ILoadOptionsFunctions;
@@ -24,13 +26,35 @@ export async function twentyApiRequest<T = IDataObject>(
 ): Promise<T> {
 	const { baseUrl } = await this.getCredentials('twentyApi');
 
-	return (await this.helpers.httpRequestWithAuthentication.call(this, 'twentyApi', {
-		method,
-		url: `${String(baseUrl).replace(/\/$/, '')}${path}`,
-		qs,
-		body,
-		json: true,
-	})) as T;
+	try {
+		return (await this.helpers.httpRequestWithAuthentication.call(this, 'twentyApi', {
+			method,
+			url: `${String(baseUrl).replace(/\/$/, '')}${path}`,
+			qs,
+			body,
+			json: true,
+		})) as T;
+	} catch (error) {
+		throw new NodeApiError(this.getNode(), error as JsonObject, {
+			message: getTwentyErrorMessage(error),
+		});
+	}
+}
+
+/**
+ * Twenty explains failures in the response body, e.g. `{"messages": ["Object person doesn't
+ * have any \"x\" field."]}` or a missing field permission. n8n's generic wording hides that.
+ */
+function getTwentyErrorMessage(error: unknown): string | undefined {
+	const { response, cause } = error as {
+		response?: { body?: unknown; data?: unknown };
+		cause?: { response?: { body?: unknown; data?: unknown } };
+	};
+	const failed = response ?? cause?.response;
+	const body = failed?.body ?? failed?.data;
+	const messages = (body as { messages?: unknown } | undefined)?.messages;
+
+	return Array.isArray(messages) && messages.length > 0 ? messages.join('; ') : undefined;
 }
 
 /**
