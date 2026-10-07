@@ -78,6 +78,12 @@ export class Twenty implements INodeType {
 						description: 'Get many records of the object',
 					},
 					{
+						name: 'Restore',
+						value: 'restore',
+						action: 'Restore a record',
+						description: 'Restore a deleted record from the trash',
+					},
+					{
 						name: 'Update',
 						value: 'update',
 						action: 'Update a record',
@@ -90,10 +96,19 @@ export class Twenty implements INodeType {
 				displayName: 'Record ID',
 				name: 'recordId',
 				type: 'string',
-				displayOptions: { show: { operation: ['get', 'update', 'delete'] } },
+				displayOptions: { show: { operation: ['get', 'update', 'delete', 'restore'] } },
 				default: '',
 				required: true,
 				description: 'The ID of the record',
+			},
+			{
+				displayName: 'Delete Permanently',
+				name: 'permanently',
+				type: 'boolean',
+				displayOptions: { show: { operation: ['delete'] } },
+				default: false,
+				description:
+					'Whether to delete the record for good instead of moving it to the trash, where it can be restored',
 			},
 			{
 				displayName: 'Fields',
@@ -192,12 +207,34 @@ export class Twenty implements INodeType {
 					// Encoding keeps an unexpected expression result inside the URL path.
 					const id = encodeURIComponent(this.getNodeParameter('recordId', i) as string);
 					const path = `/rest/${object}/${id}`;
-					const response =
-						operation === 'get'
-							? await twentyApiRequest.call(this, 'GET', path)
-							: operation === 'update'
-								? await twentyApiRequest.call(this, 'PATCH', path, {}, buildRecord.call(this, i))
-								: await twentyApiRequest.call(this, 'DELETE', path);
+					let response: unknown;
+					switch (operation) {
+						case 'get':
+							response = await twentyApiRequest.call(this, 'GET', path);
+							break;
+						case 'update':
+							response = await twentyApiRequest.call(
+								this,
+								'PATCH',
+								path,
+								{},
+								buildRecord.call(this, i),
+							);
+							break;
+						case 'restore':
+							response = await twentyApiRequest.call(this, 'PATCH', `${path}/restore`);
+							break;
+						default: {
+							// Twenty moves deleted records to the trash unless told otherwise.
+							const permanently = this.getNodeParameter('permanently', i) as boolean;
+							response = await twentyApiRequest.call(
+								this,
+								'DELETE',
+								path,
+								permanently ? { soft_delete: false } : {},
+							);
+						}
+					}
 					records = [unwrapRecord(response)];
 				}
 
