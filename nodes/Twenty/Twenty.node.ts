@@ -1,17 +1,16 @@
 import {
-	NodeApiError,
 	NodeConnectionTypes,
-	NodeOperationError,
 	type IDataObject,
 	type IExecuteFunctions,
-	type JsonObject,
 	type INodeExecutionData,
 	type INodeType,
 	type INodeTypeDescription,
 } from 'n8n-workflow';
 import { getObjects } from './loadOptions/getObjects';
 import { getMappingColumns } from './resourceMapping/getMappingColumns';
+import { createMany } from './operations/createMany';
 import { buildRecord } from './shared/buildRecord';
+import { toNodeError } from './shared/errors';
 import { twentyApiRequest, twentyApiRequestAllItems, unwrapRecord } from './shared/transport';
 
 export class Twenty implements INodeType {
@@ -58,6 +57,12 @@ export class Twenty implements INodeType {
 						value: 'create',
 						action: 'Create a record',
 						description: 'Create a record of the object',
+					},
+					{
+						name: 'Create Many',
+						value: 'createMany',
+						action: 'Create many records',
+						description: 'Create a record for every input item, in batches',
 					},
 					{
 						name: 'Create or Update',
@@ -133,7 +138,7 @@ export class Twenty implements INodeType {
 				noDataExpression: true,
 				default: { mappingMode: 'defineBelow', value: null },
 				required: true,
-				displayOptions: { show: { operation: ['create', 'update', 'upsert'] } },
+				displayOptions: { show: { operation: ['create', 'createMany', 'update', 'upsert'] } },
 				typeOptions: {
 					loadOptionsDependsOn: ['object'],
 					resourceMapper: {
@@ -194,6 +199,10 @@ export class Twenty implements INodeType {
 	};
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
+		if (this.getNodeParameter('operation', 0) === 'createMany') {
+			return [await createMany.call(this)];
+		}
+
 		const items = this.getInputData();
 		const returnData: INodeExecutionData[] = [];
 
@@ -276,10 +285,7 @@ export class Twenty implements INodeType {
 					returnData.push({ json: { error: (error as Error).message }, pairedItem: { item: i } });
 					continue;
 				}
-				if (error instanceof NodeOperationError) {
-					throw new NodeOperationError(this.getNode(), error, { itemIndex: i });
-				}
-				throw new NodeApiError(this.getNode(), error as JsonObject, { itemIndex: i });
+				throw toNodeError(this.getNode(), error, i);
 			}
 		}
 

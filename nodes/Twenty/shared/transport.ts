@@ -22,7 +22,7 @@ export async function twentyApiRequest<T = IDataObject>(
 	method: IHttpRequestMethods,
 	path: string,
 	qs: IDataObject = {},
-	body?: IDataObject,
+	body?: IDataObject | IDataObject[],
 ): Promise<T> {
 	const { baseUrl } = await this.getCredentials('twentyApi');
 
@@ -89,4 +89,9 @@ export async function twentyApiRequestAllItems(
 /** Single-record responses nest the record under a key named after the operation (`createPerson`, ...). */
 export function unwrapRecord(response: unknown): IDataObject {
 	return Object.values((response as { data: Record<string, IDataObject> }).data)[0];
+}
+
+/** Bulk responses nest the records under a key named after the operation (`createPeople`, ...). */
+export function unwrapRecords(response: unknown): IDataObject[] {
+	return Object.values((response as { data: Record<string, IDataObject[]> }).data)[0];
 }
