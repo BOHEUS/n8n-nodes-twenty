@@ -109,6 +109,12 @@ export class Twenty implements INodeType {
 						description: 'Get many records of the object',
 					},
 					{
+						name: 'Merge',
+						value: 'merge',
+						action: 'Merge records',
+						description: 'Merge several records into one',
+					},
+					{
 						name: 'Restore',
 						value: 'restore',
 						action: 'Restore a record',
@@ -157,6 +163,33 @@ export class Twenty implements INodeType {
 				placeholder: 'name.firstName[eq]:"Ada"',
 				description:
 					'Twenty filter expression selecting the records to change, e.g. <code>name.firstName[eq]:"Ada"</code>. It cannot be empty.',
+			},
+			{
+				displayName: 'Record IDs',
+				name: 'mergeIds',
+				type: 'string',
+				displayOptions: { show: { operation: ['merge'] } },
+				default: '',
+				required: true,
+				description: 'Comma-separated IDs of the records to merge, at least two',
+			},
+			{
+				displayName: 'Priority Record Position',
+				name: 'conflictPriorityIndex',
+				type: 'number',
+				displayOptions: { show: { operation: ['merge'] } },
+				typeOptions: { minValue: 0 },
+				default: 0,
+				description:
+					'Position in the ID list (starting at 0) of the record whose values win when records disagree',
+			},
+			{
+				displayName: 'Dry Run',
+				name: 'dryRun',
+				type: 'boolean',
+				displayOptions: { show: { operation: ['merge'] } },
+				default: false,
+				description: 'Whether to return the merged result without changing any record',
 			},
 			{
 				displayName: 'Delete Permanently',
@@ -277,6 +310,35 @@ export class Twenty implements INodeType {
 								`/rest/${object}`,
 								upsert ? { upsert: true } : {},
 								record,
+							),
+						),
+					];
+				} else if (operation === 'merge') {
+					const ids = this.getNodeParameter('mergeIds', i) as string | string[];
+					const idList = (Array.isArray(ids) ? ids : ids.split(','))
+						.map((id) => id.trim())
+						.filter(Boolean);
+					if (idList.length < 2) {
+						throw new NodeOperationError(this.getNode(), 'Enter at least two record IDs to merge', {
+							itemIndex: i,
+						});
+					}
+
+					records = [
+						unwrapRecord(
+							await twentyApiRequest.call(
+								this,
+								'PATCH',
+								`/rest/${object}/merge`,
+								{},
+								{
+									ids: idList,
+									conflictPriorityIndex: this.getNodeParameter(
+										'conflictPriorityIndex',
+										i,
+									) as number,
+									dryRun: this.getNodeParameter('dryRun', i) as boolean,
+								},
 							),
 						),
 					];
