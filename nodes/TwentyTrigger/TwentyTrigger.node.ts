@@ -21,8 +21,6 @@ interface WebhookState {
 	[webhookUrl: string]: { id: string; secret: string } | undefined;
 }
 
-// A trigger has no input an AI agent could call, so it cannot be a tool.
-// eslint-disable-next-line @n8n/community-nodes/node-usable-as-tool
 export class TwentyTrigger implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Twenty Trigger',
@@ -131,7 +129,9 @@ export class TwentyTrigger implements INodeType {
 
 				try {
 					await deleteWebhook.call(this, known.id);
-				} catch {
+				} catch (error) {
+					// Keep the webhook in state so the next deactivation tries again.
+					this.logger.warn(`Could not delete Twenty webhook ${known.id}`, { error });
 					return false;
 				}
 				delete state[webhookUrl];
