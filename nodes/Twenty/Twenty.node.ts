@@ -11,6 +11,7 @@ import { getObjects } from './loadOptions/getObjects';
 import { getMappingColumns } from './resourceMapping/getMappingColumns';
 import { createMany } from './operations/createMany';
 import { buildRecord } from './shared/buildRecord';
+import { buildAggregate, buildGroupBy } from './shared/groupBy';
 import {
 	buildGetManyQuery,
 	buildGetQuery,
@@ -116,6 +117,12 @@ export class Twenty implements INodeType {
 						description: 'Get many records of the object',
 					},
 					{
+						name: 'Group',
+						value: 'groupBy',
+						action: 'Group records',
+						description: 'Count or total records, grouped by one or more fields',
+					},
+					{
 						name: 'Merge',
 						value: 'merge',
 						action: 'Merge records',
@@ -170,6 +177,36 @@ export class Twenty implements INodeType {
 				placeholder: 'name.firstName[eq]:"Ada"',
 				description:
 					'Twenty filter expression selecting the records to change, e.g. <code>name.firstName[eq]:"Ada"</code>. It cannot be empty.',
+			},
+			{
+				displayName: 'Group By',
+				name: 'groupByFields',
+				type: 'string',
+				displayOptions: { show: { operation: ['groupBy'] } },
+				default: '',
+				required: true,
+				placeholder: 'industry,createdAt:MONTH',
+				description:
+					'Comma-separated fields to group by. Use <code>field.subField</code> for composite fields and <code>dateField:DAY</code> (or <code>WEEK</code>, <code>MONTH</code>, <code>QUARTER</code>, <code>YEAR</code>) to group dates.',
+			},
+			{
+				displayName: 'Aggregations',
+				name: 'aggregations',
+				type: 'string',
+				displayOptions: { show: { operation: ['groupBy'] } },
+				default: 'countNotEmptyId',
+				placeholder: 'countNotEmptyId,sumEmployees',
+				description:
+					'Comma-separated values to compute for each group, e.g. <code>countNotEmptyId</code>, <code>sumEmployees</code> or <code>avgEmployees</code>',
+			},
+			{
+				displayName: 'Filter',
+				name: 'groupByFilter',
+				type: 'string',
+				displayOptions: { show: { operation: ['groupBy'] } },
+				default: '',
+				placeholder: 'createdAt[gte]:"2026-01-01"',
+				description: 'Only group records that match this Twenty filter expression',
 			},
 			{
 				displayName: 'Record IDs',
@@ -389,6 +426,18 @@ export class Twenty implements INodeType {
 							),
 						),
 					];
+				} else if (operation === 'groupBy') {
+					const filter = (this.getNodeParameter('groupByFilter', i) as string).trim();
+					const response = await twentyApiRequest.call(this, 'GET', `/rest/${object}/groupBy`, {
+						group_by: JSON.stringify(
+							buildGroupBy(this.getNodeParameter('groupByFields', i) as string, this.getTimezone()),
+						),
+						aggregate: JSON.stringify(
+							buildAggregate(this.getNodeParameter('aggregations', i) as string),
+						),
+						...(filter && { filter }),
+					});
+					records = response as unknown as IDataObject[];
 				} else if (operation === 'merge') {
 					const ids = this.getNodeParameter('mergeIds', i) as string | string[];
 					const idList = (Array.isArray(ids) ? ids : ids.split(','))
