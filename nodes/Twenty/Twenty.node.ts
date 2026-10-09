@@ -48,7 +48,8 @@ export class Twenty implements INodeType {
 				type: 'options',
 				noDataExpression: true,
 				typeOptions: { loadOptionsMethod: 'getObjects' },
-				default: '',
+				// An empty default is flagged as unsupported once the list loads. Every workspace has People.
+				default: 'people',
 				required: true,
 				description:
 					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
