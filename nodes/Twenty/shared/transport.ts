@@ -10,7 +10,8 @@ import {
 type TwentyContext = IExecuteFunctions | ILoadOptionsFunctions;
 
 interface TwentyListResponse {
-	data: Record<string, IDataObject[]>;
+	// Record endpoints nest the list under the object's name; metadata endpoints return it directly.
+	data: IDataObject[] | Record<string, IDataObject[]>;
 	pageInfo: { hasNextPage: boolean; endCursor: string | null };
 }
 
@@ -58,8 +59,8 @@ function getTwentyErrorMessage(error: unknown): string | undefined {
 }
 
 /**
- * Follows Twenty's cursor pagination on a list endpoint. The records sit under
- * a single key in `data` that is named after the object (`people`, `objects`, ...).
+ * Follows Twenty's cursor pagination on a list endpoint. Records sit under a single key
+ * in `data` that is named after the object (`people`, ...); metadata lists are the array itself.
  */
 export async function twentyApiRequestAllItems(
 	this: TwentyContext,
@@ -77,7 +78,9 @@ export async function twentyApiRequestAllItems(
 			...(startingAfter && { starting_after: startingAfter }),
 		})) as TwentyListResponse;
 
-		items.push(...(Object.values(response.data)[0] ?? []));
+		items.push(
+			...((Array.isArray(response.data) ? response.data : Object.values(response.data)[0]) ?? []),
+		);
 
 		if (items.length >= limit || !response.pageInfo.hasNextPage || !response.pageInfo.endCursor) {
 			return items.slice(0, limit);
