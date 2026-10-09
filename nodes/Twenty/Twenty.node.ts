@@ -3,6 +3,7 @@ import {
 	NodeOperationError,
 	type IDataObject,
 	type IExecuteFunctions,
+	type IHttpRequestMethods,
 	type INodeExecutionData,
 	type INodeType,
 	type INodeTypeDescription,
@@ -11,6 +12,7 @@ import { getObjects } from './loadOptions/getObjects';
 import { getMappingColumns } from './resourceMapping/getMappingColumns';
 import { createMany } from './operations/createMany';
 import { buildRecord } from './shared/buildRecord';
+import { buildCustomRequest } from './shared/customApiCall';
 import { buildAggregate, buildGroupBy } from './shared/groupBy';
 import {
 	buildGetManyQuery,
@@ -54,6 +56,7 @@ export class Twenty implements INodeType {
 				name: 'object',
 				type: 'options',
 				noDataExpression: true,
+				displayOptions: { hide: { operation: ['customApiCall'] } },
 				typeOptions: { loadOptionsMethod: 'getObjects' },
 				// An empty default is flagged as unsupported once the list loads. Every workspace has People.
 				default: 'people',
@@ -85,6 +88,12 @@ export class Twenty implements INodeType {
 						action: 'Create or update a record',
 						description:
 							'Create a new record, or update the current one if it already exists (upsert)',
+					},
+					{
+						name: 'Custom API Call',
+						value: 'customApiCall',
+						action: 'Make a custom API call',
+						description: 'Send any request to the Twenty API with your credentials',
 					},
 					{
 						name: 'Delete',
@@ -148,6 +157,49 @@ export class Twenty implements INodeType {
 					},
 				],
 				default: 'getAll',
+			},
+			{
+				displayName: 'Method',
+				name: 'method',
+				type: 'options',
+				displayOptions: { show: { operation: ['customApiCall'] } },
+				options: [
+					{ name: 'DELETE', value: 'DELETE' },
+					{ name: 'GET', value: 'GET' },
+					{ name: 'PATCH', value: 'PATCH' },
+					{ name: 'POST', value: 'POST' },
+					{ name: 'PUT', value: 'PUT' },
+				],
+				default: 'GET',
+			},
+			{
+				displayName: 'Path',
+				name: 'path',
+				type: 'string',
+				displayOptions: { show: { operation: ['customApiCall'] } },
+				default: '',
+				required: true,
+				placeholder: '/rest/people/groupBy',
+				description:
+					'Path on your Twenty server, starting with <code>/</code>, e.g. <code>/rest/metadata/objects</code>',
+			},
+			{
+				displayName: 'Query Parameters',
+				name: 'query',
+				type: 'json',
+				displayOptions: { show: { operation: ['customApiCall'] } },
+				default: '{}',
+				description: 'Query string parameters, as a JSON object',
+			},
+			{
+				displayName: 'Body',
+				name: 'body',
+				type: 'json',
+				displayOptions: {
+					show: { operation: ['customApiCall'], method: ['PATCH', 'POST', 'PUT'] },
+				},
+				default: '{}',
+				description: 'Request body, as JSON',
 			},
 			{
 				displayName: 'Record ID',
@@ -395,7 +447,7 @@ export class Twenty implements INodeType {
 		for (let i = 0; i < items.length; i++) {
 			try {
 				const operation = this.getNodeParameter('operation', i) as string;
-				const object = this.getNodeParameter('object', i) as string;
+				const object = this.getNodeParameter('object', i, '') as string;
 				let records: IDataObject[];
 
 				if (operation === 'getAll') {
@@ -426,6 +478,15 @@ export class Twenty implements INodeType {
 							),
 						),
 					];
+				} else if (operation === 'customApiCall') {
+					const { method, path, qs, body } = buildCustomRequest(this.getNode(), i, {
+						method: this.getNodeParameter('method', i) as IHttpRequestMethods,
+						path: this.getNodeParameter('path', i) as string,
+						query: this.getNodeParameter('query', i) as string | IDataObject,
+						body: this.getNodeParameter('body', i, '{}') as string | IDataObject,
+					});
+					const response = await twentyApiRequest.call(this, method, path, qs, body);
+					records = Array.isArray(response) ? response : [response ?? {}];
 				} else if (operation === 'groupBy') {
 					const filter = (this.getNodeParameter('groupByFilter', i) as string).trim();
 					const response = await twentyApiRequest.call(this, 'GET', `/rest/${object}/groupBy`, {
