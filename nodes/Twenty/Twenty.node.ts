@@ -369,7 +369,7 @@ export class Twenty implements INodeType {
 								)
 							: await twentyApiRequest.call(this, 'DELETE', `/rest/${object}`, {
 									filter,
-									...(this.getNodeParameter('permanently', i) && { soft_delete: false }),
+									soft_delete: !this.getNodeParameter('permanently', i),
 								});
 					records = unwrapRecords(response);
 				} else {
@@ -394,14 +394,11 @@ export class Twenty implements INodeType {
 							response = await twentyApiRequest.call(this, 'PATCH', `${path}/restore`);
 							break;
 						default: {
-							// Twenty moves deleted records to the trash unless told otherwise.
+							// Twenty deletes for good unless told to move the record to the trash.
 							const permanently = this.getNodeParameter('permanently', i) as boolean;
-							response = await twentyApiRequest.call(
-								this,
-								'DELETE',
-								path,
-								permanently ? { soft_delete: false } : {},
-							);
+							response = await twentyApiRequest.call(this, 'DELETE', path, {
+								soft_delete: !permanently,
+							});
 						}
 					}
 					records = [unwrapRecord(response)];
