@@ -36,7 +36,8 @@
 			"dist/credentials/TwentyApi.credentials.js"
 		],
 		"nodes": [
-			"dist/nodes/Twenty/Twenty.node.js"
+			"dist/nodes/Twenty/Twenty.node.js",
+			"dist/nodes/TwentyTrigger/TwentyTrigger.node.js"
 		]
 	},
 	"devDependencies": {

@@ -2,12 +2,13 @@ import {
 	NodeApiError,
 	type IDataObject,
 	type IExecuteFunctions,
+	type IHookFunctions,
 	type IHttpRequestMethods,
 	type ILoadOptionsFunctions,
 	type JsonObject,
 } from 'n8n-workflow';
 
-type TwentyContext = IExecuteFunctions | ILoadOptionsFunctions;
+type TwentyContext = IExecuteFunctions | IHookFunctions | ILoadOptionsFunctions;
 
 interface TwentyListResponse {
 	// Record endpoints nest the list under the object's name; metadata endpoints return it directly.

@@ -16,6 +16,7 @@ export interface FieldMetadata {
 }
 
 export interface ObjectMetadata {
+	nameSingular: string;
 	namePlural: string;
 	labelPlural: string;
 	description?: string;
