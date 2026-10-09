@@ -11,6 +11,7 @@ import { getObjects } from './loadOptions/getObjects';
 import { getMappingColumns } from './resourceMapping/getMappingColumns';
 import { createMany } from './operations/createMany';
 import { buildRecord } from './shared/buildRecord';
+import { buildGetManyQuery, type GetManyOptions } from './shared/getManyQuery';
 import { toNodeError } from './shared/errors';
 import {
 	twentyApiRequest,
@@ -250,6 +251,18 @@ export class Twenty implements INodeType {
 				default: {},
 				options: [
 					{
+						displayName: 'Deleted Records',
+						name: 'deleted',
+						type: 'options',
+						options: [
+							{ name: 'Exclude', value: 'exclude' },
+							{ name: 'Include', value: 'include' },
+							{ name: 'Only', value: 'only' },
+						],
+						default: 'exclude',
+						description: 'Whether to return records that are in the trash',
+					},
+					{
 						displayName: 'Filter',
 						name: 'filter',
 						type: 'string',
@@ -257,6 +270,26 @@ export class Twenty implements INodeType {
 						placeholder: 'name.firstName[eq]:"Ada"',
 						description:
 							'Twenty filter expression, e.g. <code>name.firstName[eq]:"Ada"</code> or <code>and(jobTitle[eq]:"CEO",createdAt[gte]:"2026-01-01")</code>',
+					},
+					{
+						displayName: 'Order By',
+						name: 'orderBy',
+						type: 'string',
+						default: '',
+						placeholder: 'createdAt[DescNullsLast],name',
+						description:
+							'Comma-separated fields to sort by, each with an optional direction: <code>AscNullsFirst</code> (default), <code>AscNullsLast</code>, <code>DescNullsFirst</code> or <code>DescNullsLast</code>',
+					},
+					{
+						displayName: 'Related Records',
+						name: 'depth',
+						type: 'options',
+						options: [
+							{ name: 'IDs Only', value: 0 },
+							{ name: 'Include Related Records', value: 1 },
+						],
+						default: 0,
+						description: 'Whether to also return the records linked through relation fields',
 					},
 				],
 			},
@@ -289,12 +322,12 @@ export class Twenty implements INodeType {
 				if (operation === 'getAll') {
 					const returnAll = this.getNodeParameter('returnAll', i) as boolean;
 					const limit = returnAll ? Infinity : (this.getNodeParameter('limit', i) as number);
-					const { filter } = this.getNodeParameter('options', i) as { filter?: string };
+					const options = this.getNodeParameter('options', i) as GetManyOptions;
 
 					records = await twentyApiRequestAllItems.call(
 						this,
 						`/rest/${object}`,
-						filter ? { filter } : {},
+						buildGetManyQuery(options),
 						limit,
 					);
 				} else if (operation === 'create' || operation === 'upsert') {
