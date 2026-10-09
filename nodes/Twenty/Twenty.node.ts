@@ -11,7 +11,12 @@ import { getObjects } from './loadOptions/getObjects';
 import { getMappingColumns } from './resourceMapping/getMappingColumns';
 import { createMany } from './operations/createMany';
 import { buildRecord } from './shared/buildRecord';
-import { buildGetManyQuery, type GetManyOptions } from './shared/getManyQuery';
+import {
+	buildGetManyQuery,
+	buildGetQuery,
+	type GetManyOptions,
+	type GetOptions,
+} from './shared/getManyQuery';
 import { toNodeError } from './shared/errors';
 import {
 	twentyApiRequest,
@@ -244,6 +249,35 @@ export class Twenty implements INodeType {
 			},
 			{
 				displayName: 'Options',
+				name: 'getOptions',
+				type: 'collection',
+				placeholder: 'Add Option',
+				displayOptions: { show: { operation: ['get'] } },
+				default: {},
+				options: [
+					{
+						displayName: 'Fields',
+						name: 'fields',
+						type: 'string',
+						default: '',
+						placeholder: 'id,name,createdAt',
+						description: 'Comma-separated fields to return. Leave empty to return all fields.',
+					},
+					{
+						displayName: 'Related Records',
+						name: 'depth',
+						type: 'options',
+						options: [
+							{ name: 'IDs Only', value: 0 },
+							{ name: 'Include Related Records', value: 1 },
+						],
+						default: 0,
+						description: 'Whether to also return the records linked through relation fields',
+					},
+				],
+			},
+			{
+				displayName: 'Options',
 				name: 'options',
 				type: 'collection',
 				placeholder: 'Add Option',
@@ -261,6 +295,14 @@ export class Twenty implements INodeType {
 						],
 						default: 'exclude',
 						description: 'Whether to return records that are in the trash',
+					},
+					{
+						displayName: 'Fields',
+						name: 'fields',
+						type: 'string',
+						default: '',
+						placeholder: 'id,name,createdAt',
+						description: 'Comma-separated fields to return. Leave empty to return all fields.',
 					},
 					{
 						displayName: 'Filter',
@@ -413,7 +455,12 @@ export class Twenty implements INodeType {
 					let response: unknown;
 					switch (operation) {
 						case 'get':
-							response = await twentyApiRequest.call(this, 'GET', path);
+							response = await twentyApiRequest.call(
+								this,
+								'GET',
+								path,
+								buildGetQuery(this.getNodeParameter('getOptions', i) as GetOptions),
+							);
 							break;
 						case 'update':
 							response = await twentyApiRequest.call(

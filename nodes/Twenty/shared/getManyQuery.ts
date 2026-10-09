@@ -1,9 +1,13 @@
 import type { IDataObject } from 'n8n-workflow';
 
-export interface GetManyOptions {
+export interface GetOptions {
+	fields?: string;
+	depth?: number;
+}
+
+export interface GetManyOptions extends GetOptions {
 	filter?: string;
 	orderBy?: string;
-	depth?: number;
 	deleted?: 'exclude' | 'include' | 'only';
 }
 
@@ -13,12 +17,20 @@ const DELETED_FILTERS = {
 	only: 'deletedAt[is]:NOT_NULL',
 } as const;
 
+/** Turns the Get options into Twenty's single-record query parameters. */
+export function buildGetQuery({ fields, depth }: GetOptions): IDataObject {
+	return {
+		...(fields?.trim() && { fields: fields.trim() }),
+		...(depth && { depth }),
+	};
+}
+
 /** Turns the Get Many options into Twenty's list query parameters. */
 export function buildGetManyQuery({
 	filter,
 	orderBy,
-	depth,
 	deleted,
+	...getOptions
 }: GetManyOptions): IDataObject {
 	const filters = [
 		filter?.trim(),
@@ -30,6 +42,6 @@ export function buildGetManyQuery({
 			filter: filters.length > 1 ? `and(${filters.join(',')})` : filters[0],
 		}),
 		...(orderBy?.trim() && { order_by: orderBy.trim() }),
-		...(depth && { depth }),
+		...buildGetQuery(getOptions),
 	};
 }
