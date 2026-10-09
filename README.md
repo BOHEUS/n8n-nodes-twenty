@@ -11,13 +11,24 @@ and new fields show up in n8n without any update to the node.
 
 Pick an **Object** (loaded from your workspace), then an operation:
 
-| Operation | Notes                                                                         |
-| --------- | ----------------------------------------------------------------------------- |
-| Create    | Fill in fields with the field mapper, or auto-map them from the incoming item |
-| Get       | By record ID                                                                  |
-| Get Many  | Return All or a Limit, plus an optional Twenty `filter` expression            |
-| Update    | By record ID, using the field mapper                                          |
-| Delete    | By record ID (Twenty soft-deletes)                                            |
+| Operation        | Notes                                                                                              |
+| ---------------- | -------------------------------------------------------------------------------------------------- |
+| Create           | Fill in fields with the field mapper, or auto-map them from the incoming item                      |
+| Create Many      | Creates one record per input item, in batches of 60                                                |
+| Create or Update | Upsert. Matches on the record ID, or on the object's unique fields (for example a person's email)  |
+| Get              | By record ID. Optionally pick the fields to return and include related records                     |
+| Get Many         | Return All or a Limit, with filter, sort order, field selection, related records and trash options |
+| Update           | By record ID, using the field mapper                                                               |
+| Update Many      | Updates every record that matches a filter                                                         |
+| Delete           | By record ID. Moves the record to the trash, or deletes it for good with **Delete Permanently**    |
+| Delete Many      | Deletes every record that matches a filter, with the same permanent option                         |
+| Restore          | Brings a record back from the trash                                                                |
+| Find Duplicates  | Finds existing records that look like the given field values                                       |
+| Merge            | Merges two or more records into one, with a dry run to preview the result                          |
+| Group            | Counts or totals records, grouped by fields (and date parts such as month)                         |
+| Custom API Call  | Sends any request to your Twenty server with your credentials, for endpoints not covered above     |
+
+Update Many and Delete Many refuse an empty filter, so they cannot touch every record by accident.
 
 ### The field mapper
 
@@ -31,7 +42,7 @@ flags. Things worth knowing:
 - Fields that Twenty manages (system fields, read-only fields, inverse relations) are not offered.
 - A field is marked required only if it is not nullable and has no default value.
 
-### Filters
+### Filters, sorting and the trash
 
 Get Many accepts Twenty's filter syntax, for example:
 
@@ -39,6 +50,34 @@ Get Many accepts Twenty's filter syntax, for example:
 name.firstName[eq]:"Ada"
 and(jobTitle[eq]:"CEO",createdAt[gte]:"2026-01-01")
 ```
+
+Under **Options** you can also set:
+
+- **Order By**: comma-separated fields with an optional direction, for example
+  `createdAt[DescNullsLast],name`.
+- **Fields**: comma-separated fields to return, for example `id,name`. Leave empty for all.
+- **Related Records**: also return the records linked through relation fields.
+- **Deleted Records**: exclude (default), include or return only records in the trash. This is how
+  you find a record to Restore, or to delete permanently.
+
+### Deleting
+
+Delete and Delete Many move records to the trash. Turn on **Delete Permanently** to remove them
+for good, including records that are already in the trash.
+
+## Twenty Trigger
+
+The **Twenty Trigger** node starts a workflow when records change. Pick an object (or all
+objects) and one or more events: created, updated, deleted (moved to the trash), destroyed
+(deleted for good) or restored.
+
+When the workflow is activated the node registers a webhook in your Twenty workspace, and it
+removes it again when the workflow is deactivated. Deliveries are signed by Twenty; the node
+checks the signature and rejects anything unsigned, tampered with or older than five minutes.
+
+Twenty must be able to reach your n8n instance, so n8n needs a public URL (`WEBHOOK_URL`). A
+self-hosted Twenty also blocks webhooks to private addresses such as `localhost` by default. To
+test locally, add the hostname to Twenty's `OUTBOUND_HTTP_ALLOWED_INTERNAL_HOSTS` setting.
 
 ## Credentials
 
@@ -60,6 +99,7 @@ npm ci
 npm run dev      # starts n8n with the node loaded and hot reload
 npm run build
 npm run lint
+npm test
 ```
 
 Requires Node.js 22 or newer. To try the node against a local Twenty, add a credential with
@@ -69,13 +109,25 @@ The code lives in [`nodes/Twenty/`](nodes/Twenty/):
 
 - `loadOptions/`: the Object dropdown
 - `resourceMapping/`: turns an object's field metadata into the field mapper
-- `shared/`: API requests and pagination, metadata types, and the request body builder
+- `shared/`: API requests and pagination, metadata types, and the query and body builders
+- `__tests__/`: unit tests, run with `npm test` (not part of the published package)
+
+The trigger lives in [`nodes/TwentyTrigger/`](nodes/TwentyTrigger/).
+
+## Twenty versions
+
+The node talks to Twenty's REST API and adapts to differences between servers where it can: for
+example, current servers return metadata lists as a plain array, while older ones nest them
+under a key. Newer operations such as Merge, Find Duplicates and Group depend on your server's
+version. If your server does not support one, the node shows Twenty's own error message.
 
 ## Limitations
 
-- No trigger node yet (Twenty webhooks).
 - Fields of type files, actor, position and morph relations are not writable from the node.
-- Upsert and batch operations are not implemented.
+- Dedicated operations for creating objects and fields are not included. Use **Custom API Call**
+  with `/rest/metadata/objects` and `/rest/metadata/fields` for those.
+- The operation list is flat rather than grouped by resource, because Twenty's objects are the
+  resource. n8n's linter suggests resources when there are more than five operations.
 
 ## License
 
