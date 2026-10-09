@@ -15,9 +15,10 @@ const field = (overrides: Record<string, unknown>) => ({
 	...overrides,
 });
 
-function contextFor(fields: unknown[]) {
+function contextFor(fields: unknown[], operation = 'create') {
+	const parameters: Record<string, string> = { object: 'pets', operation };
 	return {
-		getNodeParameter: () => 'pets',
+		getNodeParameter: (name: string) => parameters[name],
 		getNode: () => ({ name: 'Twenty' }),
 		getCredentials: async () => ({ baseUrl: 'https://twenty.example' }),
 		helpers: {
@@ -44,8 +45,34 @@ describe('getMappingColumns', () => {
 				}),
 			]) as never,
 		);
-		assert.equal(fields[0].displayName, 'Traits (PLAYFUL, SHY)');
+		assert.equal(fields[0].displayName, 'Traits, any of ["PLAYFUL","SHY"]');
 		assert.equal(fields[0].type, 'array');
+	});
+
+	it('caps the listed multi-select values', async () => {
+		const options = Array.from({ length: 12 }, (_, n) => ({ value: `V${n}`, label: `V${n}` }));
+		const { fields } = await getMappingColumns.call(
+			contextFor([field({ label: 'Tags', type: 'MULTI_SELECT', options })]) as never,
+		);
+		assert.equal(
+			fields[0].displayName,
+			'Tags, any of ["V0","V1","V2","V3","V4","V5","V6","V7","V8","V9", …]',
+		);
+	});
+
+	it('requires fields without a default only when creating', async () => {
+		const mandatory = field({ isNullable: false, defaultValue: null });
+		for (const [operation, required] of [
+			['create', true],
+			['createMany', true],
+			['update', false],
+			['updateMany', false],
+			['upsert', false],
+			['findDuplicates', false],
+		] as const) {
+			const { fields } = await getMappingColumns.call(contextFor([mandatory], operation) as never);
+			assert.equal(fields[0].required, required, operation);
+		}
 	});
 
 	it('keeps plain labels for other fields and offers selects as dropdowns', async () => {

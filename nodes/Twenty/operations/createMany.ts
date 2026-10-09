@@ -1,44 +1,56 @@
-import type { IExecuteFunctions, INodeExecutionData } from 'n8n-workflow';
+import type { IDataObject, IExecuteFunctions, INodeExecutionData } from 'n8n-workflow';
 import { buildRecord } from '../shared/buildRecord';
 import { toNodeError } from '../shared/errors';
 import { twentyApiRequest, unwrapRecords } from '../shared/transport';
 
-// Twenty accepts up to 60 records per batch request.
-const BATCH_SIZE = 60;
+const BATCH_SIZE = 200;
 
-/** Creates one record per input item, sending them to Twenty in batches instead of one by one. */
 export async function createMany(this: IExecuteFunctions): Promise<INodeExecutionData[]> {
 	const items = this.getInputData();
 	const object = this.getNodeParameter('object', 0) as string;
 	const returnData: INodeExecutionData[] = [];
 
-	for (let start = 0; start < items.length; start += BATCH_SIZE) {
-		const itemIndexes = items.slice(start, start + BATCH_SIZE).map((_, offset) => start + offset);
+	const fail = (error: unknown, itemIndexes: number[]) => {
+		if (!this.continueOnFail()) throw toNodeError(this.getNode(), error, itemIndexes[0]);
+		for (const i of itemIndexes) {
+			returnData.push({ json: { error: (error as Error).message }, pairedItem: { item: i } });
+		}
+	};
+
+	// Built one by one, so an item with a bad value fails alone instead of taking its batch down.
+	const valid: Array<{ itemIndex: number; record: IDataObject }> = [];
+	for (let i = 0; i < items.length; i++) {
+		try {
+			valid.push({ itemIndex: i, record: buildRecord.call(this, i) });
+		} catch (error) {
+			fail(error, [i]);
+		}
+	}
+
+	for (let start = 0; start < valid.length; start += BATCH_SIZE) {
+		const batch = valid.slice(start, start + BATCH_SIZE);
 
 		try {
-			const records = itemIndexes.map((i) => buildRecord.call(this, i));
 			const response = await twentyApiRequest.call(
 				this,
 				'POST',
 				`/rest/batch/${object}`,
 				{},
-				records,
+				batch.map(({ record }) => record),
 			);
 
-			// Records come back in the order they were sent.
 			unwrapRecords(response).forEach((json, position) => {
-				returnData.push({ json, pairedItem: { item: itemIndexes[position] } });
+				returnData.push({ json, pairedItem: { item: batch[position].itemIndex } });
 			});
 		} catch (error) {
-			if (this.continueOnFail()) {
-				for (const i of itemIndexes) {
-					returnData.push({ json: { error: (error as Error).message }, pairedItem: { item: i } });
-				}
-				continue;
-			}
-			throw toNodeError(this.getNode(), error, itemIndexes[0]);
+			fail(
+				error,
+				batch.map(({ itemIndex }) => itemIndex),
+			);
 		}
 	}
 
-	return returnData;
+	return returnData.sort(
+		(a, b) => (a.pairedItem as { item: number }).item - (b.pairedItem as { item: number }).item,
+	);
 }

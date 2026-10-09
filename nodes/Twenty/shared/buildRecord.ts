@@ -7,10 +7,6 @@ import {
 
 const JSON_TYPES = ['object', 'array'];
 
-/**
- * Builds the request body for create/update from the field mapper: either the values
- * set by hand, or the incoming item's fields that exist in the schema (auto-map).
- */
 export function buildRecord(this: IExecuteFunctions, itemIndex: number): IDataObject {
 	const mapper = this.getNodeParameter('columns', itemIndex) as ResourceMapperValue;
 	const schema = mapper.schema.filter(({ removed }) => !removed);

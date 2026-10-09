@@ -1,15 +1,16 @@
 /* eslint-disable @n8n/community-nodes/no-restricted-imports -- tests are not shipped, so the n8n Cloud import ban does not apply */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { IDataObject } from 'n8n-workflow';
+import { NodeApiError, type IDataObject, type INode } from 'n8n-workflow';
+import { toNodeError } from '../shared/errors';
 import {
+	twentyApiRequest,
 	twentyApiRequestAllItems,
 	unwrapDuplicates,
 	unwrapRecord,
 	unwrapRecords,
 } from '../shared/transport';
 
-/** A stand-in for n8n's execution context that serves the given pages and records the queries. */
 function contextServing(pages: unknown[]) {
 	const queries: IDataObject[] = [];
 	const context = {
@@ -65,6 +66,19 @@ describe('twentyApiRequestAllItems', () => {
 		]);
 	});
 
+	it('reads a bare array and a page without pageInfo, as older servers send', async () => {
+		const bare = contextServing([[{ id: 'a' }, { id: 'b' }]]);
+		assert.deepEqual(
+			await twentyApiRequestAllItems.call(bare.context as never, '/rest/metadata/objects', {}, 1),
+			[{ id: 'a' }],
+		);
+		const noPageInfo = contextServing([{ data: [{ id: 'a' }] }]);
+		assert.deepEqual(
+			await twentyApiRequestAllItems.call(noPageInfo.context as never, '/rest/metadata/objects'),
+			[{ id: 'a' }],
+		);
+	});
+
 	it('treats an empty page as no records', async () => {
 		const { context } = contextServing([page({}, null)]);
 		assert.deepEqual(await twentyApiRequestAllItems.call(context as never, '/rest/people'), []);
@@ -81,5 +95,33 @@ describe('response unwrapping', () => {
 			}),
 			[{ id: 'a' }, { id: 'b' }],
 		);
+	});
+});
+
+describe('errors', () => {
+	const node = { name: 'Twenty' } as INode;
+	// n8n's request helper fails with a NodeApiError around the HTTP error, as here.
+	const httpError = Object.assign(new Error('Request failed with status code 400'), {
+		response: { status: 400, data: { messages: ['Object person doesn\'t have any "x" field.'] } },
+	});
+
+	it("surfaces Twenty's message from an error n8n already wrapped", async () => {
+		const context = {
+			getCredentials: async () => ({ baseUrl: 'https://twenty.example' }),
+			getNode: () => node,
+			helpers: {
+				httpRequestWithAuthentication: async () => {
+					throw new NodeApiError(node, httpError as never);
+				},
+			},
+		};
+		await assert.rejects(twentyApiRequest.call(context as never, 'GET', '/rest/people'), {
+			message: 'Object person doesn\'t have any "x" field.',
+		});
+	});
+
+	it('links an API error to its item', () => {
+		const error = toNodeError(node, new NodeApiError(node, httpError as never), 3);
+		assert.equal((error as NodeApiError).context.itemIndex, 3);
 	});
 });

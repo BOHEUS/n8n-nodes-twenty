@@ -17,7 +17,6 @@ const DELETED_FILTERS = {
 	only: 'deletedAt[is]:NOT_NULL',
 } as const;
 
-/** Turns the Get options into Twenty's single-record query parameters. */
 export function buildGetQuery({ fields, depth }: GetOptions): IDataObject {
 	return {
 		...(fields?.trim() && { fields: fields.trim() }),
@@ -25,7 +24,6 @@ export function buildGetQuery({ fields, depth }: GetOptions): IDataObject {
 	};
 }
 
-/** Turns the Get Many options into Twenty's list query parameters. */
 export function buildGetManyQuery({
 	filter,
 	orderBy,

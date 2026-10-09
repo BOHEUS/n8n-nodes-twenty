@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { INode } from 'n8n-workflow';
-import { buildCustomRequest } from '../shared/customApiCall';
+import { buildCustomRequest, toCustomResponseRecords } from '../shared/customApiCall';
 import { buildGetManyQuery, buildGetQuery } from '../shared/getManyQuery';
 import { buildAggregate, buildGroupBy } from '../shared/groupBy';
 
@@ -98,5 +98,15 @@ describe('buildCustomRequest', () => {
 			() => buildCustomRequest(node, 0, { ...request, query: '{nope' }),
 			/not valid JSON/,
 		);
+	});
+});
+
+describe('toCustomResponseRecords', () => {
+	it('keeps objects, turns an empty body into an empty item and wraps bare values', () => {
+		assert.deepEqual(toCustomResponseRecords({ id: 'a' }), [{ id: 'a' }]);
+		assert.deepEqual(toCustomResponseRecords([{ id: 'a' }, 'b']), [{ id: 'a' }, { value: 'b' }]);
+		assert.deepEqual(toCustomResponseRecords(''), [{}]);
+		assert.deepEqual(toCustomResponseRecords(undefined), [{}]);
+		assert.deepEqual(toCustomResponseRecords(true), [{ value: true }]);
 	});
 });

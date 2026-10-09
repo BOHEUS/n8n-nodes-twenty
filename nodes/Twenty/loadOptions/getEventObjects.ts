@@ -1,7 +1,6 @@
 import type { ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
 import { getObjectsMetadata } from '../shared/metadata';
 
-/** Objects a webhook can listen to. Twenty names events after the singular name (`company.created`). */
 export async function getEventObjects(
 	this: ILoadOptionsFunctions,
 ): Promise<INodePropertyOptions[]> {

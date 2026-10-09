@@ -1,4 +1,4 @@
-import type { IDataObject, IHookFunctions } from 'n8n-workflow';
+import { NodeApiError, type IDataObject, type IHookFunctions, type JsonObject } from 'n8n-workflow';
 import { twentyApiRequest } from './transport';
 
 export interface TwentyWebhook {
@@ -7,14 +7,32 @@ export interface TwentyWebhook {
 	operations: string[];
 }
 
-/** Webhooks sit under `data` on current servers and are a bare array on older ones. */
-export async function listWebhooks(this: IHookFunctions): Promise<TwentyWebhook[]> {
-	const response = await twentyApiRequest.call(this, 'GET', '/rest/metadata/webhooks');
-	const webhooks = Array.isArray(response) ? response : (response as { data: unknown }).data;
-
+// Twenty answers a missing webhook with a 400 coded WEBHOOK_NOT_FOUND; other versions use a 404.
+function isNotFound(error: unknown): boolean {
+	const { httpCode, context } = error as NodeApiError;
 	return (
-		Array.isArray(webhooks) ? webhooks : Object.values(webhooks as object)[0]
-	) as TwentyWebhook[];
+		String(httpCode) === '404' ||
+		(context?.data as { code?: unknown } | undefined)?.code === 'WEBHOOK_NOT_FOUND'
+	);
+}
+
+export async function getWebhook(
+	this: IHookFunctions,
+	id: string,
+): Promise<TwentyWebhook | undefined> {
+	try {
+		const webhook = await twentyApiRequest.call(
+			this,
+			'GET',
+			`/rest/metadata/webhooks/${encodeURIComponent(id)}`,
+		);
+		return (webhook as Partial<TwentyWebhook> | undefined)?.id
+			? (webhook as unknown as TwentyWebhook)
+			: undefined;
+	} catch (error) {
+		if (isNotFound(error)) return undefined;
+		throw new NodeApiError(this.getNode(), error as JsonObject);
+	}
 }
 
 export async function createWebhook(
@@ -31,5 +49,13 @@ export async function createWebhook(
 }
 
 export async function deleteWebhook(this: IHookFunctions, id: string): Promise<void> {
-	await twentyApiRequest.call(this, 'DELETE', `/rest/metadata/webhooks/${encodeURIComponent(id)}`);
+	try {
+		await twentyApiRequest.call(
+			this,
+			'DELETE',
+			`/rest/metadata/webhooks/${encodeURIComponent(id)}`,
+		);
+	} catch (error) {
+		if (!isNotFound(error)) throw new NodeApiError(this.getNode(), error as JsonObject);
+	}
 }

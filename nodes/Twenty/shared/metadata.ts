@@ -25,7 +25,6 @@ export interface ObjectMetadata {
 	fields: FieldMetadata[];
 }
 
-/** The workspace schema. Fields come embedded, so one paginated listing is enough. */
 export async function getObjectsMetadata(
 	this: IExecuteFunctions | ILoadOptionsFunctions,
 ): Promise<ObjectMetadata[]> {

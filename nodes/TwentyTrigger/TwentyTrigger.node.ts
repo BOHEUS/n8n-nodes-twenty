@@ -8,8 +8,14 @@ import {
 	type IWebhookResponseData,
 } from 'n8n-workflow';
 import { getEventObjects } from '../Twenty/loadOptions/getEventObjects';
-import { createWebhook, deleteWebhook, listWebhooks } from '../Twenty/shared/webhooks';
+import { createWebhook, deleteWebhook, getWebhook } from '../Twenty/shared/webhooks';
 import { isSignedBy } from './signature';
+
+function getOperations(context: IHookFunctions): string[] {
+	const object = context.getNodeParameter('object') as string;
+	const events = context.getNodeParameter('events') as string[];
+	return events.map((event) => `${object}.${event}`);
+}
 
 interface WebhookState {
 	[webhookUrl: string]: { id: string; secret: string } | undefined;
@@ -87,24 +93,33 @@ export class TwentyTrigger implements INodeType {
 				const known = (this.getWorkflowStaticData('node') as WebhookState)[webhookUrl];
 				if (!known) return false;
 
-				const webhooks = await listWebhooks.call(this);
-				return webhooks.some(({ id }) => id === known.id);
+				// A webhook left over from another object or event list must be replaced.
+				const webhook = await getWebhook.call(this, known.id);
+				const operations = getOperations(this);
+				return (
+					webhook?.targetUrl === webhookUrl &&
+					webhook.operations.length === operations.length &&
+					operations.every((operation) => webhook.operations.includes(operation))
+				);
 			},
 
 			async create(this: IHookFunctions): Promise<boolean> {
 				const webhookUrl = this.getNodeWebhookUrl('default') as string;
-				const object = this.getNodeParameter('object') as string;
-				const events = this.getNodeParameter('events') as string[];
+				const state = this.getWorkflowStaticData('node') as WebhookState;
 				const secret = randomBytes(32).toString('hex');
+
+				// Replacing a stale webhook: remove it so Twenty stops calling with the old secret.
+				const stale = state[webhookUrl];
+				if (stale) await deleteWebhook.call(this, stale.id).catch(() => undefined);
 
 				const { id } = await createWebhook.call(this, {
 					targetUrl: webhookUrl,
-					operations: events.map((event) => `${object}.${event}`),
+					operations: getOperations(this),
 					secret,
 					description: `n8n: ${this.getWorkflow().name}`,
 				});
 
-				(this.getWorkflowStaticData('node') as WebhookState)[webhookUrl] = { id, secret };
+				state[webhookUrl] = { id, secret };
 				return true;
 			},
 

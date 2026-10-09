@@ -12,7 +12,7 @@ import { getObjects } from './loadOptions/getObjects';
 import { getMappingColumns } from './resourceMapping/getMappingColumns';
 import { createMany } from './operations/createMany';
 import { buildRecord } from './shared/buildRecord';
-import { buildCustomRequest } from './shared/customApiCall';
+import { buildCustomRequest, toCustomResponseRecords } from './shared/customApiCall';
 import { buildAggregate, buildGroupBy } from './shared/groupBy';
 import {
 	buildGetManyQuery,
@@ -309,7 +309,7 @@ export class Twenty implements INodeType {
 					},
 				},
 				typeOptions: {
-					loadOptionsDependsOn: ['object'],
+					loadOptionsDependsOn: ['object', 'operation'],
 					resourceMapper: {
 						resourceMapperMethod: 'getMappingColumns',
 						mode: 'add',
@@ -486,7 +486,7 @@ export class Twenty implements INodeType {
 						body: this.getNodeParameter('body', i, '{}') as string | IDataObject,
 					});
 					const response = await twentyApiRequest.call(this, method, path, qs, body);
-					records = Array.isArray(response) ? response : [response ?? {}];
+					records = toCustomResponseRecords(response);
 				} else if (operation === 'groupBy') {
 					const filter = (this.getNodeParameter('groupByFilter', i) as string).trim();
 					const response = await twentyApiRequest.call(this, 'GET', `/rest/${object}/groupBy`, {

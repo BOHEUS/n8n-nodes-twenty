@@ -12,10 +12,6 @@ interface CustomRequestInput {
 	body: string | IDataObject;
 }
 
-/**
- * Validates a custom request. The path is appended to the credential's Base URL, so it must stay
- * a path: anything else could send the API key to another host.
- */
 export function buildCustomRequest(node: INode, itemIndex: number, input: CustomRequestInput) {
 	const path = input.path.trim();
 	if (!path.startsWith('/') || path.startsWith('//')) {
@@ -35,7 +31,6 @@ export function buildCustomRequest(node: INode, itemIndex: number, input: Custom
 	};
 }
 
-// The JSON editor hands over text, expressions can hand over objects.
 function parseJson(node: INode, itemIndex: number, label: string, value: string | IDataObject) {
 	if (typeof value !== 'string') return value;
 	if (!value.trim()) return undefined;
@@ -45,4 +40,11 @@ function parseJson(node: INode, itemIndex: number, label: string, value: string 
 	} catch {
 		throw new NodeOperationError(node, `${label} is not valid JSON`, { itemIndex });
 	}
+}
+
+export function toCustomResponseRecords(response: unknown): IDataObject[] {
+	return (Array.isArray(response) ? response : [response]).map((entry: unknown) => {
+		if (entry !== null && typeof entry === 'object') return entry as IDataObject;
+		return entry === undefined || entry === null || entry === '' ? {} : { value: entry };
+	});
 }

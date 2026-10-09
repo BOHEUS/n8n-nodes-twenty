@@ -31,14 +31,28 @@ const FIELD_TYPES: Record<string, FieldType> = {
 	RAW_JSON: 'object',
 };
 
-function toMapperField(field: FieldMetadata): ResourceMapperField | undefined {
+// Only creating a record needs every required field; updates and searches send a subset.
+const CREATE_OPERATIONS = ['create', 'createMany'];
+
+// Enough values to show the format without stretching the label across the screen.
+const MAX_LISTED_VALUES = 10;
+
+function multiSelectLabel({ label, options = [] }: FieldMetadata): string {
+	if (options.length === 0) return label;
+
+	const values = options.slice(0, MAX_LISTED_VALUES).map(({ value }) => JSON.stringify(value));
+	const more = options.length > MAX_LISTED_VALUES ? ', …' : '';
+	return `${label}, any of [${values.join(',')}${more}]`;
+}
+
+function toMapperField(field: FieldMetadata, creating: boolean): ResourceMapperField | undefined {
 	if (!field.isActive || field.isSystem || field.isUIReadOnly || field.writability !== 'OPEN') {
 		return undefined;
 	}
 
 	const base = { defaultMatch: false, canBeUsedToMatch: false, display: true };
 	// Twenty fills in a default for missing values, so only fields without one are really required.
-	const required = !field.isNullable && field.defaultValue == null;
+	const required = creating && !field.isNullable && field.defaultValue == null;
 
 	// A many-to-one relation is written through its join column (e.g. `company` -> `companyId`).
 	// The other relation kinds are the inverse side and cannot be written directly.
@@ -61,10 +75,7 @@ function toMapperField(field: FieldMetadata): ResourceMapperField | undefined {
 		...base,
 		id: field.name,
 		// The field mapper has no multi-select input, so the values to type are listed in the label.
-		displayName:
-			field.type === 'MULTI_SELECT' && field.options?.length
-				? `${field.label} (${field.options.map(({ value }) => value).join(', ')})`
-				: field.label,
+		displayName: field.type === 'MULTI_SELECT' ? multiSelectLabel(field) : field.label,
 		required,
 		type,
 		...(type === 'options' && {
@@ -76,7 +87,8 @@ function toMapperField(field: FieldMetadata): ResourceMapperField | undefined {
 export async function getMappingColumns(
 	this: ILoadOptionsFunctions,
 ): Promise<ResourceMapperFields> {
-	const objectName = this.getNodeParameter('object', 0) as string;
+	const objectName = this.getNodeParameter('object') as string;
+	const creating = CREATE_OPERATIONS.includes(this.getNodeParameter('operation') as string);
 	const object = (await getObjectsMetadata.call(this)).find(
 		({ namePlural }) => namePlural === objectName,
 	);
@@ -86,6 +98,8 @@ export async function getMappingColumns(
 	}
 
 	return {
-		fields: object.fields.map(toMapperField).filter((field) => field !== undefined),
+		fields: object.fields
+			.map((field) => toMapperField(field, creating))
+			.filter((field) => field !== undefined),
 	};
 }

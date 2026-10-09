@@ -1,9 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-// Deliveries older than this are refused, so a captured request cannot be replayed later.
 const MAX_AGE_MS = 5 * 60 * 1000;
 
-/** Twenty signs `<timestamp>:<body>` with the webhook's secret (HMAC-SHA256, hex). */
 export function isSignedBy(
 	secret: string,
 	request: { headers: Record<string, unknown>; rawBody?: Buffer },

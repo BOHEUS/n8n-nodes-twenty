@@ -1,7 +1,6 @@
 import type { ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
 import { getObjectsMetadata } from '../shared/metadata';
 
-/** Lists the workspace's objects (standard and custom), so the schema is never hardcoded. */
 export async function getObjects(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
 	const objects = await getObjectsMetadata.call(this);
 

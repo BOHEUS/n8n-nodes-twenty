@@ -14,7 +14,7 @@ Pick an **Object** (loaded from your workspace), then an operation:
 | Operation        | Notes                                                                                              |
 | ---------------- | -------------------------------------------------------------------------------------------------- |
 | Create           | Fill in fields with the field mapper, or auto-map them from the incoming item                      |
-| Create Many      | Creates one record per input item, in batches of 60                                                |
+| Create Many      | Creates one record per input item, in batches of 200                                               |
 | Create or Update | Upsert. Matches on the record ID, or on the object's unique fields (for example a person's email)  |
 | Get              | By record ID. Optionally pick the fields to return and include related records                     |
 | Get Many         | Return All or a Limit, with filter, sort order, field selection, related records and trash options |
@@ -30,6 +30,10 @@ Pick an **Object** (loaded from your workspace), then an operation:
 
 Update Many and Delete Many refuse an empty filter, so they cannot touch every record by accident.
 
+The node can be used as a tool by an AI agent. That includes Custom API Call, which lets the agent
+send any request your API key allows, including changes to the workspace schema. Give the
+credential an API key with only the permissions the agent needs.
+
 ### The field mapper
 
 Create and Update list the fields of the selected object, with their types and required
@@ -37,12 +41,13 @@ flags. Things worth knowing:
 
 - Select and rating fields are dropdowns with the workspace's options.
 - Multi-select fields take a JSON array, e.g. `["PLAYFUL", "SHY"]`. n8n's field mapper has no
-  multi-select input, so the allowed values are listed in the field's label.
+  multi-select input, so the label lists the allowed values in that form (the first 10 of them).
 - Composite fields (name, emails, phones, links, address, currency) take JSON, e.g.
   `{"firstName": "Ada", "lastName": "Lovelace"}`.
 - Relations to another record (many-to-one) are set by that record's ID, e.g. `Company (ID)`.
 - Fields that Twenty manages (system fields, read-only fields, inverse relations) are not offered.
-- A field is marked required only if it is not nullable and has no default value.
+- A field is marked required only when creating records, and only if it is not nullable and has no
+  default value. Update, Create or Update and Find Duplicates send just the fields you fill in.
 
 ### Filters, sorting and the trash
 
