@@ -12,6 +12,7 @@
 - Twenty Trigger node that starts a workflow on record created, updated, deleted, destroyed and
   restored events, with signature verification.
 - Unit tests, run in CI.
+- The allowed values of a multi-select field are listed in its label in the field mapper.
 
 ### Fixed
 

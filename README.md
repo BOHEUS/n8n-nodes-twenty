@@ -36,6 +36,8 @@ Create and Update list the fields of the selected object, with their types and r
 flags. Things worth knowing:
 
 - Select and rating fields are dropdowns with the workspace's options.
+- Multi-select fields take a JSON array, e.g. `["PLAYFUL", "SHY"]`. n8n's field mapper has no
+  multi-select input, so the allowed values are listed in the field's label.
 - Composite fields (name, emails, phones, links, address, currency) take JSON, e.g.
   `{"firstName": "Ada", "lastName": "Lovelace"}`.
 - Relations to another record (many-to-one) are set by that record's ID, e.g. `Company (ID)`.

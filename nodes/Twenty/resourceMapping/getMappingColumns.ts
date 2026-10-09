@@ -60,7 +60,11 @@ function toMapperField(field: FieldMetadata): ResourceMapperField | undefined {
 	return {
 		...base,
 		id: field.name,
-		displayName: field.label,
+		// The field mapper has no multi-select input, so the values to type are listed in the label.
+		displayName:
+			field.type === 'MULTI_SELECT' && field.options?.length
+				? `${field.label} (${field.options.map(({ value }) => value).join(', ')})`
+				: field.label,
 		required,
 		type,
 		...(type === 'options' && {
