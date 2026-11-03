@@ -3,7 +3,7 @@
 	"version": "0.1.0",
 	"description": "n8n node for Twenty CRM: read and write records of any object, including custom objects and fields",
 	"license": "MIT",
-	"homepage": "https://github.com/twentyhq/twenty-n8n-nodes",
+	"homepage": "https://github.com/BOHEUS/n8n-nodes-twenty",
 	"keywords": [
 		"n8n-community-node-package",
 		"twenty",
@@ -11,11 +11,11 @@
 	],
 	"author": {
 		"name": "BOHEUS",
-		"email": "contact@twenty.com"
+		"email": "56270748+BOHEUS@users.noreply.github.com"
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/twentyhq/twenty-n8n-nodes.git"
+		"url": "git+https://github.com/BOHEUS/n8n-nodes-twenty.git"
 	},
 	"scripts": {
 		"build": "n8n-node build",
